@@ -3,7 +3,7 @@ import { HTMLEngine } from "./htmlEngine.js";
 
 const engine = new HTMLEngine("./html/index.html");
 const portNumber = 8080;
-
+engine.insertVariables({variable: "Test here"});
 const server = createServer((req, res) => {
     console.log(`Server: Recieved a request at ${req.url}`);
     res.writeHead(200, {'content-type': 'text/html'});

@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 // As an example, Javascript can be inserted into the given HTML file by pointing to the 
 // javascript file within the HTML like so: <script src={javascript.js}></script>
 // This segement will be replaced with a script block containing the javascript in this file.
+// Furthmore this class can be used to insert variable values into parts of the html sheet by 
+// using the following format: ${variable_name}, this will then be replaced with the variable value you provide.
 class HTMLEngine {
     #htmlString = '<body>No Body Provided</body>';
 
@@ -99,8 +101,8 @@ class HTMLEngine {
     insertVariables(variablesObj) {
         // Find each variable name in the html document and replace it with the value
         for (let variable in variablesObj) {
-            const regex = new RegExp(`\\$\{${variable}\}`);
-            this.#htmlString = this.#htmlString.replace(regex, variablesObj[variable].toString());
+            const regex = new RegExp(`\\$\{${variable}\}`, 'g');
+            this.#htmlString = this.#htmlString.replaceAll(regex, variablesObj[variable].toString());
         }
     }
     
