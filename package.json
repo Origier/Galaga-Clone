@@ -1,0 +1,12 @@
+{
+  "name": "galaga-clone",
+  "version": "1.0.0",
+  "description": "Galaga Clone built with Javascript and Webgl",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Aaron McDonald",
+  "license": "ISC",
+  "type": "module"
+}
