@@ -1,5 +1,7 @@
 const { vec2, vec3, mat3, mat4 } = glMatrix;
 
+const FLOAT_SIZE = 4;
+
 // Holds the squares information on where it is currently located
 const squareTranslation = {
     x: 0,
@@ -13,36 +15,10 @@ const squareTranslation = {
 const vaos = []
 let currentVAO = null;
 
-const ARGUMENT_TYPE = Object.freeze({
-    BUFFER_TYPE: 1,
-    BUFFER_ID: 2,
-    BUFFER_DATA: 3,
-    BUFFER_USAGE: 4,
-    ATTRIBUTE_ID: 5,
-    DATA_POINT_SIZE: 6,
-    DATA_TYPE: 7,
-    NORMALIZED: 8,
-    STRIDE: 9,
-    OFFSET: 10,
-    ELEMENT_BUFFER_ID: 11,
-    ELEMENT_BUFFER_DATA: 12
-});
-
 function createVertexArrayObject() {
     index = vaos.length;
     vaos.push({
-        bufferType: null,
-        bufferId: null,
-        bufferData: null,
-        bufferUsage: null,
-        attributeId: null,
-        dataPointSize: null,
-        dataType: null,
-        normalized: null,
-        stride: null,
-        offset: null,
-        elementBufferId: null,
-        elementBufferData: null
+        executionFunc: null
     })
     return index;
 }
@@ -55,78 +31,18 @@ function unbindVertexArrayObject() {
     currentVAO = null;
 }
 
-function configureVertexArrayObject(argumentType, arguement) {
-    switch (argumentType) {
-        case ARGUMENT_TYPE.BUFFER_TYPE:
-            vaos[currentVAO].bufferType = arguement;
-            break;
-        case ARGUMENT_TYPE.BUFFER_ID:
-            vaos[currentVAO].bufferId = arguement;
-            break;
-        case ARGUMENT_TYPE.BUFFER_DATA:
-            vaos[currentVAO].bufferData = arguement;
-            break;
-        case ARGUMENT_TYPE.BUFFER_USAGE:
-            vaos[currentVAO].bufferUsage = arguement;
-            break;
-        case ARGUMENT_TYPE.ATTRIBUTE_ID:
-            vaos[currentVAO].attributeId = arguement;
-            break;
-        case ARGUMENT_TYPE.DATA_POINT_SIZE:
-            vaos[currentVAO].dataPointSize = arguement;
-            break;
-        case ARGUMENT_TYPE.DATA_TYPE:
-            vaos[currentVAO].dataType = arguement;
-            break;
-        case ARGUMENT_TYPE.NORMALIZED:
-            vaos[currentVAO].normalized = arguement;
-            break;
-        case ARGUMENT_TYPE.STRIDE:
-            vaos[currentVAO].stride = arguement;
-            break;
-        case ARGUMENT_TYPE.OFFSET:
-            vaos[currentVAO].offset = arguement;
-            break;
-        case ARGUMENT_TYPE.ELEMENT_BUFFER_ID:
-            vaos[currentVAO].elementBufferId = arguement;
-            break;
-        case ARGUMENT_TYPE.ELEMENT_BUFFER_DATA:
-            vaos[currentVAO].elementBufferData = arguement;
-            break;
-        default:
-            throw new Error("There is no vertax array object setting that matches that arguement type.");
+function configureVertexArrayObject(executionFunc) {
+    if (typeof(executionFunc) !== 'function') {
+        throw new Error('You must configure the Vertex Array Object with a function to be executed when using');
     }
+    vaos[currentVAO].executionFunc = executionFunc;
 }
 
 // Executes the settings for the VAO on the glcontext to prepare for drawing
 function useVertexArrayObject(glContext) {
     const vao = vaos[currentVAO];
-    // Ensure all of the data is set
-    for (let key in vao) {
-        if (vao[key] === null && key !== "elementBufferId" && key !== "elementBufferData") {
-            throw new Error(`You haven't set the setting for ${key} yet.`);
-        }
-    }
-
-    glContext.bindBuffer(vao.bufferType, vao.bufferId);
-    glContext.bufferData(vao.bufferType, new Float32Array(vao.bufferData), vao.bufferUsage);
-    if (vao.elementBufferId !== null) {
-        if (vao.elementBufferData === null) {
-            throw new Error(`You haven't set the setting for the element buffer data yet.`);
-        }
-        glContext.bindBuffer(glContext.ELEMENT_ARRAY_BUFFER, vao.elementBufferId);
-        glContext.bufferData(glContext.ELEMENT_ARRAY_BUFFER, new Int16Array(vao.elementBufferData), vao.bufferUsage);
-    }
-
-    glContext.vertexAttribPointer(
-        vao.attributeId,
-        vao.dataPointSize,
-        vao.dataType,
-        vao.normalized,
-        vao.stride,
-        vao.offset
-    );
-    glContext.enableVertexAttribArray(vao.attributeId);
+    
+    vao.executionFunc(glContext);
 }
 
 //
@@ -196,8 +112,6 @@ function moveSquare(event) {
 }
 
 function main() {
-    let deltaTime = 0.0;
-
     const canvas = document.querySelector('#gl-canvas');
 
     // Initalize the gl context
@@ -215,23 +129,36 @@ function main() {
     document.addEventListener('keydown', moveSquare);
 
     // Set clear color to black, fully opaque
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(0.6, 0.6, 0.6, 1.0);
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
     // Clear the color buffer with specified clear color
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     
 
     const vsSource = `
-        attribute vec4 aVertexPosition;
+        attribute vec3 aVertexPosition;
+        attribute vec3 aColor;
+
+        varying mediump vec4 ourColor;
+
+        uniform mat4 uModelMatrix;
+        uniform mat4 uViewMatrix;
+        uniform mat4 uProjectionMatrix;
 
         void main() {
-            gl_Position = aVertexPosition;
+            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aVertexPosition, 1.0);
+            ourColor = vec4(aColor, 1.0);
         }
     `
 
     const fsSource = `
+        varying mediump vec4 ourColor;
+
         void main() {
-            gl_FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+            gl_FragColor = ourColor;
         }
     `
 
@@ -239,98 +166,156 @@ function main() {
     
 
     const verticies = [
-        0.5,  0.5,  0.0,
-        0.5, -0.5,  0.0,
-       -0.5, -0.5,  0.0,
-       -0.5,  0.5,  0.0
+        // Front Face
+        // Positions     // Red
+        0.5,  0.5, -0.5, 1.0, 0.0, 0.0,
+        0.5, -0.5, -0.5, 1.0, 0.0, 0.0,
+       -0.5, -0.5, -0.5, 1.0, 0.0, 0.0,
+       -0.5,  0.5, -0.5, 1.0, 0.0, 0.0,
+
+       // Back Face
+       // Positions     // Orange
+        0.5,  0.5,  0.5, 1.0, 0.7, 0.0,
+        0.5, -0.5,  0.5, 1.0, 0.7, 0.0,
+       -0.5, -0.5,  0.5, 1.0, 0.7, 0.0,
+       -0.5,  0.5,  0.5, 1.0, 0.7, 0.0,
+
+       // Top Face
+       // Positions     // White
+       0.5,  0.5,  0.5, 1.0, 1.0, 1.0,
+       0.5,  0.5, -0.5, 1.0, 1.0, 1.0,
+      -0.5,  0.5,  0.5, 1.0, 1.0, 1.0,
+      -0.5,  0.5, -0.5, 1.0, 1.0, 1.0,
+
+       // Bottom Face
+       // Positions     // Black
+       0.5, -0.5,  0.5, 0.0, 0.0, 0.0,
+       0.5, -0.5, -0.5, 0.0, 0.0, 0.0,
+      -0.5, -0.5,  0.5, 0.0, 0.0, 0.0,
+      -0.5, -0.5, -0.5, 0.0, 0.0, 0.0,
+
+       // Right Face
+       // Positions     // Blue
+       0.5,  0.5,  0.5, 0.0, 0.0, 1.0,
+       0.5,  0.5, -0.5, 0.0, 0.0, 1.0,
+       0.5, -0.5,  0.5, 0.0, 0.0, 1.0,
+       0.5, -0.5, -0.5, 0.0, 0.0, 1.0,
+
+       // Left Face
+       // Positions     // Green
+      -0.5,  0.5,  0.5, 0.0, 1.0, 0.0,
+      -0.5,  0.5, -0.5, 0.0, 1.0, 0.0,
+      -0.5, -0.5,  0.5, 0.0, 1.0, 0.0,
+      -0.5, -0.5, -0.5, 0.0, 1.0, 0.0
     ];
 
     const indices = [
+        // Front face
         0, 1, 3,
-        1, 2, 3
+        1, 2, 3,
+
+        // Back Face
+        4, 5, 7,
+        5, 6, 7,
+
+        // Top Face
+        8, 9,  10,
+        9, 10, 11,
+
+        // Bottom Face
+        12, 13, 14,
+        13, 14, 15,
+
+        // Right Face
+        16, 17, 18,
+        17, 18, 19,
+
+        // Left Face
+        20, 21, 22,
+        21, 22, 23
     ];
+
+  
 
     const vbo = gl.createBuffer();
     const ebo = gl.createBuffer();
     const vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    const colorAttrib = gl.getAttribLocation(shaderProgram, "aColor");
+    
     const vao = createVertexArrayObject();
     bindVertexArrayObject(vao);
-    configureVertexArrayObject(ARGUMENT_TYPE.BUFFER_TYPE, gl.ARRAY_BUFFER);
-    configureVertexArrayObject(ARGUMENT_TYPE.BUFFER_ID, vbo);
-    configureVertexArrayObject(ARGUMENT_TYPE.BUFFER_DATA, verticies);
-    configureVertexArrayObject(ARGUMENT_TYPE.BUFFER_USAGE, gl.STATIC_DRAW);
-    configureVertexArrayObject(ARGUMENT_TYPE.ATTRIBUTE_ID, vertexPositionAttrib);
-    configureVertexArrayObject(ARGUMENT_TYPE.DATA_POINT_SIZE, 3);
-    configureVertexArrayObject(ARGUMENT_TYPE.DATA_TYPE, gl.FLOAT);
-    configureVertexArrayObject(ARGUMENT_TYPE.NORMALIZED, gl.FALSE);
-    configureVertexArrayObject(ARGUMENT_TYPE.STRIDE, 0);
-    configureVertexArrayObject(ARGUMENT_TYPE.OFFSET, 0);
-    configureVertexArrayObject(ARGUMENT_TYPE.ELEMENT_BUFFER_ID, ebo);
-    configureVertexArrayObject(ARGUMENT_TYPE.ELEMENT_BUFFER_DATA, indices);
+    configureVertexArrayObject((glContext) => {
+        glContext.bindBuffer(glContext.ARRAY_BUFFER, vbo);
+        glContext.bufferData(glContext.ARRAY_BUFFER, new Float32Array(verticies), glContext.DYNAMIC_DRAW);
+        
+        glContext.bindBuffer(glContext.ELEMENT_ARRAY_BUFFER, ebo);
+        glContext.bufferData(glContext.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), glContext.STATIC_DRAW);
+    
+        glContext.vertexAttribPointer(
+            vertexPositionAttrib,
+            3,
+            glContext.FLOAT,
+            glContext.FALSE,
+            6 * FLOAT_SIZE,
+            0
+        );
+        glContext.enableVertexAttribArray(vertexPositionAttrib); 
+
+        glContext.vertexAttribPointer(
+            colorAttrib,
+            3,
+            glContext.FLOAT,
+            glContext.FALSE,
+            6 * FLOAT_SIZE,
+            3 * FLOAT_SIZE
+        );
+        glContext.enableVertexAttribArray(colorAttrib);
+    });
 
     unbindVertexArrayObject();
-
     gl.useProgram(shaderProgram);
-    bindVertexArrayObject(vao);
-    useVertexArrayObject(gl);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
-    // // Vertex shader program
-    // const vsSource = `
-    //     attribute vec4 aVertexPosition;
-    //     attribute vec4 aVertexColor;
+        
+    const modelMatrixLocation = gl.getUniformLocation(shaderProgram, "uModelMatrix");
+    const viewMatrixLocation = gl.getUniformLocation(shaderProgram, "uViewMatrix");
+    const projectionMatrixLocation = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
+    
+    let modelMatrix = mat4.create();
+    let viewMatrix = mat4.create();
+    let projectionMatrix = mat4.create();
 
-    //     uniform mat4 uModelViewMatrix;
-    //     uniform mat4 uProjectionMatrix;
+    // Model matrix manipulation
+    mat4.rotate(modelMatrix, modelMatrix, -((60 * Math.PI) / 180), [1.0, 0.0, 0.0]);
+    mat4.scale(modelMatrix, modelMatrix, [2.0, 2.0, 2.0]);
 
-    //     varying lowp vec4 vColor;
+    // View matrix manipulation
+    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10.0]);
+    mat4.rotate(viewMatrix, viewMatrix, (225 * Math.PI) / 180, [0.0, 1.0, 0.0]);
+    
+    // Projection Matrix manipulation
+    mat4.perspective(projectionMatrix, (45 * Math.PI) / 180, 640 / 480, 0.1, 100);
 
-    //     void main() {
-    //         gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-    //         vColor = aVertexColor;
-    //     }
-    // `;
+    gl.uniformMatrix4fv(modelMatrixLocation, false, modelMatrix);
+    gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
+    gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
+    
+    let deltaTime = 0.0;
+    let then = 0.0;
+    let totalTime = 0.0;
+    function render(now) {
+        now *= 0.1;
+        deltaTime = now - then;
+        totalTime += deltaTime;
+        then = now;
 
-    // const fsSource = `
-    //     varying lowp vec4 vColor;
+        gl.clear(gl.COLOR_BUFFER_BIT);
+       
+        bindVertexArrayObject(vao);
+        useVertexArrayObject(gl);
+        gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
 
+        requestAnimationFrame(render);
+    }
 
-    //     void main() {
-    //         gl_FragColor = vColor;
-    //     }
-    // `;
-
-    // const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
-
-    // // Collect all the info needed to use the shader program
-    // // Look up which attribute our shader program is using
-    // // for aVertexPosition and look up uniform locations
-    // const programInfo = {
-    //     program: shaderProgram,
-    //     attribLocations: {
-    //         vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
-    //         vertexColor: gl.getAttribLocation(shaderProgram, "aVertexColor"),
-    //     },
-    //     uniformLocations: {
-    //         projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
-    //         modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix"),
-    //     },
-    // };
-
-    // let then = 0;
-
-    // // Draw the scene repeatedly
-    // function render(now) {
-    //     now *= 0.001; // convert to seconds
-    //     deltaTime = now - then;
-    //     then = now;
-
-    //     // Here's where we call the routine that builds all the objects we'll be drawing
-    //     let buffers = initBuffers(gl, squareTranslation);
-
-    //     drawScene(gl, programInfo, buffers);
-
-    //     requestAnimationFrame(render);
-    // }
-    // requestAnimationFrame(render);
+    requestAnimationFrame(render);
 }
