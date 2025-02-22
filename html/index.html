@@ -6,11 +6,19 @@
     <title>Index Page</title>
 </head>
 <body>
-    <h1>Hello Test Page!</h1>
-    <canvas id="gl-canvas" width="640" height="480"></canvas>
+    <h1>Galaga Clone!</h1>
+    <canvas id="gl-canvas" width="${canvasWidth}" height="${canvasHeight}"></canvas>
 </body>
 <script id="gl-matrix-src" src={./lib/glMatrix/gl-matrix-min.js}></script>
-<script id="draw-scene-src" src={./src/draw-scene.js}></script>
-<script id="init-buffers-src" src={./src/init-buffers.js}></script>
+<script id="document-settings">
+    const CANVAS_WIDTH = ${canvasWidth};
+    const CANVAS_HEIGHT = ${canvasHeight};
+    const FLOAT_SIZE = ${floatSize};
+    const DEFAULT_DEPTH_CLEAR = ${depthClear};
+    const BACKGROUND_COLOR_R = ${backgroundColorR};
+    const BACKGROUND_COLOR_G = ${backgroundColorG};
+    const BACKGROUND_COLOR_B = ${backgroundColorB};
+    const BACKGROUND_COLOR_A = ${backgroundColorA};
+</script>
 <script id="webpage-src" src={./src/index.js}></script>
 </html>

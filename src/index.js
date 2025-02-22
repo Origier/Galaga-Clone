@@ -1,7 +1,5 @@
 const { vec2, vec3, vec4, mat3, mat4 } = glMatrix;
 
-const FLOAT_SIZE = 4;
-
 //
 // Vertex Array Object Class - Stores configuration information for VertexPointerAttribs
 //
@@ -465,15 +463,12 @@ function moveSquare(event) {
 
 function main() {
 
-    // Creating a new manager
-    // const manager = new GLManager(gl);
-
     // Event listener to move the square
     document.addEventListener('keydown', moveSquare);
 
     // Set clear color to black, fully opaque
-    gl.clearColor(0.6, 0.6, 0.6, 1.0);
-    gl.clearDepth(1.0);
+    gl.clearColor(BACKGROUND_COLOR_R, BACKGROUND_COLOR_G, BACKGROUND_COLOR_B, BACKGROUND_COLOR_A);
+    gl.clearDepth(DEFAULT_DEPTH_CLEAR);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     // Clear the color buffer with specified clear color and depth
@@ -520,7 +515,7 @@ function main() {
     // mat4.rotate(viewMatrix, viewMatrix, (45 * Math.PI) / 180, [0.0, 1.0, 0.0]);
     
     // // Projection Matrix manipulation
-    mat4.perspective(projectionMatrix, (45 * Math.PI) / 180, 640 / 480, 0.1, 100);
+    mat4.perspective(projectionMatrix, (45 * Math.PI) / 180, CANVAS_WIDTH / CANVAS_HEIGHT, 0.1, 100);
 
     gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
