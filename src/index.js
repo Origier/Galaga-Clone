@@ -30,6 +30,10 @@ class VertexArrayObject {
     }
 }
 
+// 
+// ShapeGL Class - Shape Object to encompass what is needed to render a 3D shape to a GL canvas
+//
+
 // Encapsulation of the needed elements to render a 3D shape to the screen.
 // This class will track the local verticies, colors, elements, WebGL buffer objects,
 // Vertex Array object to manage the attributes and allows for modifications on the object itself.
@@ -58,6 +62,7 @@ class ShapeGL {
     // Verticies are the positions for each vertex in the object
     // Colors are the color for each vertex, each vertex MUST have a color - they are associated by the order in the arrays, i.e. verticies[1] has colors[1] applied to it
     // Elements are for the order to draw the verticies in, expecting to draw triangles, use the array index, ex: 0, 1, 2 draws a triangle between verticies[0] -> verticies[1] -> verticies[2]
+    // glContext needs to be a WebGL context to reference the needed functions for rendering.
 
     constructor(verticies, vertexItems, colors, colorItems, elements, glContext) {
         if (vertexItems !== 3 && vertexItems !== 4) {
@@ -392,6 +397,10 @@ if (gl === null) {
 }
 
 const cube = new ShapeGL(verticies, 3, colors, 3, indices, gl);
+const cube2 = new ShapeGL(verticies, 3, colors, 3, indices, gl);
+cube2.scaleGlobal([0.5, 0.5, 0.5]);
+cube2.translateGlobal([0.0, 2.0, 0.0]);
+cube2.rotateGlobal(45, [0.0, 1.0, 0.0]);
 
 
 //
@@ -528,6 +537,7 @@ function main() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
        
         cube.render(shaderProgram, "uModelMatrix", "aVertexPosition", "aColor");
+        cube2.render(shaderProgram, "uModelMatrix", "aVertexPosition", "aColor");
 
         requestAnimationFrame(render);
     }
