@@ -9,45 +9,24 @@ const squareTranslation = {
 };
 
 //
-// Vertex Array Object State Machine
+// Vertex Array Object Class - Stores configuration information for VertexPointerAttribs
 //
 
-const vaos = []
-let currentVAO = null;
-
-function createVertexArrayObject() {
-    index = vaos.length;
-    vaos.push({
-        executionFunc: null
-    })
-    return index;
-}
-
-function bindVertexArrayObject(id) {
-    currentVAO = id;
-}
-
-function unbindVertexArrayObject() {
-    currentVAO = null;
-}
-
-function configureVertexArrayObject(executionFunc) {
-    if (typeof(executionFunc) !== 'function') {
-        throw new Error('You must configure the Vertex Array Object with a function to be executed when using');
-    }
-    vaos[currentVAO].executionFunc = executionFunc;
-}
-
-// Executes the settings for the VAO on the glcontext to prepare for drawing
-function useVertexArrayObject(glContext) {
-    const vao = vaos[currentVAO];
+class VertexArrayObject {
+    #executionFunc = null;
     
-    vao.executionFunc(glContext);
-}
+    constructor(func) {
+        if(typeof(func) !== 'function') {
+            throw new Error("You must provide a function that uses webgl to configure your object for drawing.");
+        }
 
-//
-// State Machine End
-//
+        this.#executionFunc = func;    
+    }
+
+    use(glContext) {
+        this.#executionFunc(glContext);
+    }
+}
 
 main();
 
@@ -242,9 +221,7 @@ function main() {
     const vertexPositionAttrib = gl.getAttribLocation(shaderProgram, "aVertexPosition");
     const colorAttrib = gl.getAttribLocation(shaderProgram, "aColor");
     
-    const vao = createVertexArrayObject();
-    bindVertexArrayObject(vao);
-    configureVertexArrayObject((glContext) => {
+    const vao = new VertexArrayObject((glContext) => {
         glContext.bindBuffer(glContext.ARRAY_BUFFER, vbo);
         glContext.bufferData(glContext.ARRAY_BUFFER, new Float32Array(verticies), glContext.DYNAMIC_DRAW);
         
@@ -272,7 +249,6 @@ function main() {
         glContext.enableVertexAttribArray(colorAttrib);
     });
 
-    unbindVertexArrayObject();
     gl.useProgram(shaderProgram);
 
         
@@ -310,8 +286,7 @@ function main() {
 
         gl.clear(gl.COLOR_BUFFER_BIT);
        
-        bindVertexArrayObject(vao);
-        useVertexArrayObject(gl);
+        vao.use(gl);
         gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
 
         requestAnimationFrame(render);
