@@ -1,4 +1,97 @@
+
 const { vec2, vec3, vec4, mat3, mat4 } = glMatrix;
+
+const playerSpeed = 0.1;
+let deltaTime = 0.0;
+let eventQue = [];
+let playerMoveLeft = false;
+let playerMoveRight = false;
+
+// Shader Programs
+const vsSource = `
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexColor;
+    attribute vec2 aTexCoord;
+
+    varying mediump vec4 ourColor;
+    varying lowp vec2 TexCoord;
+
+    uniform mat4 uModelMatrix;
+    uniform mat4 uViewMatrix;
+    uniform mat4 uProjectionMatrix;
+
+    void main() {
+        gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aVertexPosition, 1.0);
+        ourColor = vec4(aVertexColor, 1.0);
+        TexCoord = aTexCoord;
+    }
+`
+
+const fsSource = `
+    varying mediump vec4 ourColor;
+    varying lowp vec2 TexCoord;
+
+    uniform sampler2D ourTexture;
+
+    void main() {
+        gl_FragColor = texture2D(ourTexture, TexCoord);
+    }
+`
+
+
+// Async server controls to fetch data
+async function fetchData(url) {
+    let responseData = new Uint8Array(0);
+    let tempData = null;
+    const dataResponse = await fetch(url);
+    for await (const chunk of dataResponse.body) {
+        tempData = new Uint8Array(responseData.length + chunk.length);
+        tempData.set(responseData);
+        tempData.set(chunk, responseData.length);
+        responseData = tempData;
+    }
+    return responseData;
+}
+
+function loadTexture(gl, url) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Setup the texture to be used immediately rather than wait for the image to download
+    const level = 0;
+    const internalFormat = gl.RGBA;
+    const width = 1;
+    const height = 1;
+    const border = 0;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
+    const pixel = new Uint8Array([0, 0, 255, 255]); // Blue
+    gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, pixel);
+
+    const image = new Image();
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, srcFormat, srcType, image);
+        if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        } else {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        }
+    };
+    image.src = url;
+
+    return texture;
+}
+
+function isPowerOf2(value) {
+    return (value & (value - 1)) === 0
+}
+
+//
+
 
 //
 // Vertex Array Object Class - Stores configuration information for VertexPointerAttribs
@@ -54,7 +147,13 @@ class ShapeGL {
     #vertexItems = null;
     #colorItems = null;
     #vertexCount = null;
-    #glContext = null
+    #glContext = null;
+    #texture = null;
+    #textureAttribName = null;
+    #textureAttrib = null;
+    #textureBufferObject = null;
+    #textureCoords = null;
+    #textureSet = false;
 
     // Expects arrays of verticies, colors and elements
     // Verticies are the positions for each vertex in the object
@@ -99,7 +198,7 @@ class ShapeGL {
 
 
         this.#vao = new VertexArrayObject(() => {
-            // Bind the VBO and set the attribute info
+            // Bind the Vertex Buffer Object for where to place the verticies
             this.#glContext.bindBuffer(this.#glContext.ARRAY_BUFFER, this.#vertexBufferObject);
             if (this.#localVerticiesChanged) {
                 this.#localVerticiesChanged = false;
@@ -117,7 +216,7 @@ class ShapeGL {
     
             this.#glContext.enableVertexAttribArray(this.#vertexBufferObject); 
     
-            // Bind the CBO and set the attribute info
+            // Bind the Color buffer object for the colors to draw
             this.#glContext.bindBuffer(this.#glContext.ARRAY_BUFFER, this.#colorBufferObject);
             if (this.#colorsChanged) {
                 this.#colorsChanged = false;
@@ -134,13 +233,46 @@ class ShapeGL {
                 0
             );
             this.#glContext.enableVertexAttribArray(this.#vertexColorAtrrib);
+
+            // Bind the Texture if needed
+            if (this.#textureSet) {
+                this.#glContext.bindTexture(this.#glContext.TEXTURE_2D, this.#texture);
+                this.#glContext.bindBuffer(this.#glContext.ARRAY_BUFFER, this.#textureBufferObject);
+                this.#glContext.vertexAttribPointer(
+                    this.#textureAttrib,
+                    2,
+                    this.#glContext.FLOAT,
+                    this.#glContext.FALSE,
+                    2 * FLOAT_SIZE,
+                    0
+                );
+                this.#glContext.enableVertexAttribArray(this.#textureAttrib);
+            }
             
+            // Bind the Element Buffer for the drawing order
             this.#glContext.bindBuffer(this.#glContext.ELEMENT_ARRAY_BUFFER, this.#elementBufferObject);
             if (this.#elementsChanged) {
                 this.#elementsChanged = false;
                 this.#glContext.bufferData(this.#glContext.ELEMENT_ARRAY_BUFFER, new Int16Array(this.#elements), this.#glContext.STATIC_DRAW);
             }
         });
+    }
+
+    setTexture(url, textureCoords, textureAttribName) {
+        this.#texture = loadTexture(this.#glContext, url);
+        this.#textureSet = true;
+        this.#textureCoords = textureCoords;
+        this.#textureAttribName = textureAttribName;
+        this.#textureBufferObject = this.#glContext.createBuffer();
+        this.#glContext.bindBuffer(this.#glContext.ARRAY_BUFFER, this.#textureBufferObject);
+        this.#glContext.bufferData(this.#glContext.ARRAY_BUFFER, new Float32Array(this.#textureCoords), this.#glContext.STATIC_DRAW);
+    }
+
+    removeTexture() {
+        this.#texture = null;
+        this.#textureSet = false;
+        this.#textureCoords = null;
+        this.#textureAttribName = null;
     }
 
     configureVao(func) {
@@ -271,134 +403,15 @@ class ShapeGL {
         this.#vertexPositionAttrib = this.#glContext.getAttribLocation(shaderProgram, vertexPositionName);
         this.#vertexColorAtrrib = this.#glContext.getAttribLocation(shaderProgram, vertexColorName);
         const modelMatrixLocation = this.#glContext.getUniformLocation(shaderProgram, modelMatrixName);
+        if (this.#textureSet) {
+            this.#textureAttrib = this.#glContext.getAttribLocation(shaderProgram, this.#textureAttribName);
+        }
         this.#glContext.uniformMatrix4fv(modelMatrixLocation, false, this.#modelMatrix);
         this.#vao.use();
         this.#glContext.drawElements(this.#glContext.TRIANGLES, this.#elements.length, this.#glContext.UNSIGNED_SHORT, 0);
     }
 }
 
-
-
-const verticies = [
-    // Front Face
-    // Positions     
-    0.5,  0.5, -0.5, 
-    0.5, -0.5, -0.5, 
-   -0.5, -0.5, -0.5, 
-   -0.5,  0.5, -0.5, 
-
-   // Back Face
-   // Positions      
-    0.5,  0.5,  0.5, 
-    0.5, -0.5,  0.5, 
-   -0.5, -0.5,  0.5, 
-   -0.5,  0.5,  0.5, 
-
-   // Top Face
-   // Positions     
-   0.5,  0.5,  0.5, 
-   0.5,  0.5, -0.5, 
-  -0.5,  0.5,  0.5, 
-  -0.5,  0.5, -0.5, 
-
-   // Bottom Face
-   // Positions     
-   0.5, -0.5,  0.5, 
-   0.5, -0.5, -0.5, 
-  -0.5, -0.5,  0.5, 
-  -0.5, -0.5, -0.5, 
-
-   // Right Face
-   // Positions     
-   0.5,  0.5,  0.5, 
-   0.5,  0.5, -0.5, 
-   0.5, -0.5,  0.5, 
-   0.5, -0.5, -0.5, 
-
-   // Left Face
-   // Positions     
-  -0.5,  0.5,  0.5, 
-  -0.5,  0.5, -0.5, 
-  -0.5, -0.5,  0.5, 
-  -0.5, -0.5, -0.5
-];
-
-const colors = [
-    // Red
-    1.0, 0.0, 0.0,
-    1.0, 0.0, 0.0,
-    1.0, 0.0, 0.0,
-    1.0, 0.0, 0.0,
-    // Orange
-    1.0, 0.7, 0.0,
-    1.0, 0.7, 0.0,
-    1.0, 0.7, 0.0,
-    1.0, 0.7, 0.0,
-    // White
-    1.0, 1.0, 1.0,
-    1.0, 1.0, 1.0,
-    1.0, 1.0, 1.0,
-    1.0, 1.0, 1.0,
-    // Black
-    0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0,
-    // Blue
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    // Green
-    0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0
-]
-
-const indices = [
-    // Front face
-    0, 1, 3,
-    1, 2, 3,
-
-    // Back Face
-    4, 5, 7,
-    5, 6, 7,
-
-    // Top Face
-    8, 9,  10,
-    9, 10, 11,
-
-    // Bottom Face
-    12, 13, 14,
-    13, 14, 15,
-
-    // Right Face
-    16, 17, 18,
-    17, 18, 19,
-
-    // Left Face
-    20, 21, 22,
-    21, 22, 23
-];
-
-
-const canvas = document.querySelector('#gl-canvas');
-
-// Initalize the gl context
-const gl = canvas.getContext('webgl');
-
-if (gl === null) {
-    alert('Webgl was unable to load, your machine or browser may not be able to support this webpage :(');
-} else {
-    main();
-}
-
-const cube = new ShapeGL(verticies, 3, colors, 3, indices, gl);
-const cube2 = new ShapeGL(verticies, 3, colors, 3, indices, gl);
-cube2.scaleGlobal([0.5, 0.5, 0.5]);
-cube2.translateGlobal([0.0, 2.0, 0.0]);
-cube2.rotateGlobal(45, [0.0, 1.0, 0.0]);
 
 
 //
@@ -449,91 +462,133 @@ function loadShader(gl, type, source) {
     return shader;
 }
 
-function moveSquare(event) {
-    if (event.code === 'KeyW') {
-        squareTranslation.y += 0.1;
-    } else if (event.code === 'KeyS') {
-        squareTranslation.y -= 0.1;
-    } else if (event.code === 'KeyA') {
-        squareTranslation.x -= 0.1;
+function configureWebGL(gl) {
+    gl.clearColor(BACKGROUND_COLOR_R, BACKGROUND_COLOR_G, BACKGROUND_COLOR_B, BACKGROUND_COLOR_A);  // Setting Background
+    gl.clearDepth(DEFAULT_DEPTH_CLEAR);                                                             // Setting the depth rendering
+    gl.enable(gl.DEPTH_TEST);                                                                       // Enabling depth testing
+    gl.depthFunc(gl.LEQUAL);                                                                        // Using the LEQUAL function for depth testing
+    gl.enable(gl.BLEND);                                                                            // Enabling blending
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);                                             // Applying blending to alpha channels to ensure the canvas is not transparent 
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);                                            // Clearing the buffers, resetting the canvas to the default settings just set
+}
+
+function togglePlayerMovement(event) {
+    if (event.code === 'KeyA') {
+        if (playerMoveLeft && event.type === 'keyup') {
+            playerMoveLeft = false;
+        } else {
+            playerMoveLeft = true;
+        }
     } else if (event.code === 'KeyD') {
-        squareTranslation.x += 0.1;
+        if (playerMoveRight && event.type === 'keyup') {
+            playerMoveRight = false;
+        } else {
+            playerMoveRight = true;
+        }
     }
 }
 
+function dispatchEvent(event, eventInfo) {
+    if (event.type === 'keydown' || event.type === 'keyup') {
+        togglePlayerMovement(event);
+    }
+}
+
+function queEvent(event) {
+    eventQue.push(event);
+}
+
+main();
+
 function main() {
 
-    // Event listener to move the square
-    document.addEventListener('keydown', moveSquare);
+    const canvas = document.querySelector('#gl-canvas');
 
-    // Set clear color to black, fully opaque
-    gl.clearColor(BACKGROUND_COLOR_R, BACKGROUND_COLOR_G, BACKGROUND_COLOR_B, BACKGROUND_COLOR_A);
-    gl.clearDepth(DEFAULT_DEPTH_CLEAR);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    // Clear the color buffer with specified clear color and depth
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Initalize the gl context - ensure that webgl is usable
+    const gl = canvas.getContext('webgl', {
+        alpha: true,
+    });
 
+    if (gl === null) {
+        alert('Webgl was unable to load, your machine or browser may not be able to support this webpage :(');
+        return;
+    }
+
+    let totalTime = 0.0;
+    // Build the player scene
+    const scene = []
+    const player = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
+    player.setTexture(`${DOMAIN_NAME}/assets/Player.png`, squareDefaultTexCoords, "aTexCoord");
+    player.translateGlobal([CANVAS_WIDTH / 2, 100, 0]);
+    player.scaleGlobal([100, 100, 0]);
+    player.rotateGlobal(180, [1.0, 0.0, 0.0]);
+
+    const basicEnemy = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
+    basicEnemy.setTexture(`${DOMAIN_NAME}/assets/Enemy_Basic.png`, squareDefaultTexCoords, "aTexCoord");
+    basicEnemy.translateGlobal([CANVAS_WIDTH / 2, 500, 0]);
+    basicEnemy.scaleGlobal([100, 100, 0]);
+
+    // Adding the items to be rendered
+    scene.push(player);
+    scene.push(basicEnemy);
     
+    // Adding Document event handlers
+    document.addEventListener('keydown', queEvent);
+    document.addEventListener('keyup', queEvent);
 
-    const vsSource = `
-        attribute vec3 aVertexPosition;
-        attribute vec3 aColor;
-
-        varying mediump vec4 ourColor;
-
-        uniform mat4 uModelMatrix;
-        uniform mat4 uViewMatrix;
-        uniform mat4 uProjectionMatrix;
-
-        void main() {
-            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aVertexPosition, 1.0);
-            ourColor = vec4(aColor, 1.0);
-        }
-    `
-
-    const fsSource = `
-        varying mediump vec4 ourColor;
-
-        void main() {
-            gl_FragColor = ourColor;
-        }
-    `
-
+    // Configure the gl context and set the constructed shaders
+    configureWebGL(gl);
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
-
     gl.useProgram(shaderProgram);
 
+    // Configuring the Camera Position and the Projection View
     const viewMatrixLocation = gl.getUniformLocation(shaderProgram, "uViewMatrix");
     const projectionMatrixLocation = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
     
     let viewMatrix = mat4.create();
     let projectionMatrix = mat4.create();
 
-    // // View matrix manipulation
     mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10.0]);
-    // mat4.rotate(viewMatrix, viewMatrix, (45 * Math.PI) / 180, [0.0, 1.0, 0.0]);
-    
-    // // Projection Matrix manipulation
-    mat4.perspective(projectionMatrix, (45 * Math.PI) / 180, CANVAS_WIDTH / CANVAS_HEIGHT, 0.1, 100);
+    mat4.ortho(projectionMatrix, 0, CANVAS_WIDTH, 0, CANVAS_HEIGHT, 0.1, 100); // Orthographic
 
+    // Setting the above matricies to the uniforms in the shader program
     gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
     
-    let deltaTime = 0.0;
+    // Main game loop
     let then = 0.0;
-    let totalTime = 0.0;
     function render(now) {
+        // Time management
         now *= 0.1;
         deltaTime = now - then;
         totalTime += deltaTime;
         then = now;
 
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-       
-        cube.render(shaderProgram, "uModelMatrix", "aVertexPosition", "aColor");
-        cube2.render(shaderProgram, "uModelMatrix", "aVertexPosition", "aColor");
+        const eventInfo = {
+            playerObject: player,
+            totalTime: totalTime
+        }
 
+        for (eventReq of eventQue) {
+            dispatchEvent(eventReq, eventInfo);
+        }
+
+        eventQue = [];
+
+        if (playerMoveLeft) {
+            player.translateGlobal([-playerSpeed * deltaTime, 0.0, 0.0]);
+        } else if (playerMoveRight) {
+            player.translateGlobal([playerSpeed * deltaTime, 0.0, 0.0]);
+        }
+        
+
+        // Resetting the canvas
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        
+        // Rendering everything in the scene
+        for (object of scene) {
+            object.render(shaderProgram, "uModelMatrix", "aVertexPosition", "aVertexColor");
+        }
         requestAnimationFrame(render);
     }
 

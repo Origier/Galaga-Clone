@@ -1,5 +1,10 @@
+// Website Details
+const DOMAIN_NAME = "http://localhost:8080";
+
+// Operational details
 const FLOAT_SIZE = 4;
 
+// Canvas Details
 const CANVAS_HEIGHT = 960;
 const CANVAS_WIDTH = 720;
 const BACKGROUND_COLOR_R = 0.6;
@@ -16,5 +21,6 @@ export {
     BACKGROUND_COLOR_G,
     BACKGROUND_COLOR_B,
     BACKGROUND_COLOR_A,
-    DEFAULT_DEPTH_CLEAR
+    DEFAULT_DEPTH_CLEAR,
+    DOMAIN_NAME
 };

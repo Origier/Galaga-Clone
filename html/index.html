@@ -3,11 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Index Page</title>
+    <title>WebGL Galaga</title>
 </head>
-<body>
-    <h1>Galaga Clone!</h1>
-    <canvas id="gl-canvas" width="${canvasWidth}" height="${canvasHeight}"></canvas>
+<style>
+    .center {
+        display: block;
+        margin: auto;
+    }
+
+    .center-text {
+        text-align: center;
+    }
+</style>
+<body style="background-color: aqua;">
+    <h1 class="center-text">Galaga Clone!</h1>
+    <div class="center">
+        <canvas id="gl-canvas" class="center" width="${canvasWidth}" height="${canvasHeight}"></canvas>
+    </div>
 </body>
 <script id="gl-matrix-src" src={./lib/glMatrix/gl-matrix-min.js}></script>
 <script id="document-settings">
@@ -19,6 +31,8 @@
     const BACKGROUND_COLOR_G = ${backgroundColorG};
     const BACKGROUND_COLOR_B = ${backgroundColorB};
     const BACKGROUND_COLOR_A = ${backgroundColorA};
+    const DOMAIN_NAME = "${domainName}";
 </script>
+<script id="primativeData" src={./src/primativeData.js}></script>
 <script id="webpage-src" src={./src/index.js}></script>
 </html>
