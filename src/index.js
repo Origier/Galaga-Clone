@@ -1,7 +1,7 @@
 
 const { vec2, vec3, vec4, mat3, mat4 } = glMatrix;
 
-const playerSpeed = 0.1;
+const playerSpeed = 10.0;
 let deltaTime = 0.0;
 let eventQue = [];
 let playerMoveLeft = false;
@@ -154,6 +154,10 @@ class ShapeGL {
     #textureBufferObject = null;
     #textureCoords = null;
     #textureSet = false;
+
+    #globalRotation = [0.0, 0.0, 0.0];
+    #globalScale = [1.0, 1.0, 1.0];
+    #globalTranslation = [0.0, 0.0, 0.0];
 
     // Expects arrays of verticies, colors and elements
     // Verticies are the positions for each vertex in the object
@@ -349,25 +353,51 @@ class ShapeGL {
         this.transformLocal(scale);
     }
 
+    calculateModelMatrix() {
+        this.#modelMatrix = mat4.create();
+        mat4.translate(this.#modelMatrix, this.#modelMatrix, this.#globalTranslation);
+        mat4.scale(this.#modelMatrix, this.#modelMatrix, this.#globalScale);
+        mat4.rotate(this.#modelMatrix, this.#modelMatrix, (this.#globalRotation[0] * Math.PI) / 180, [1.0, 0.0, 0.0]);
+        mat4.rotate(this.#modelMatrix, this.#modelMatrix, (this.#globalRotation[1] * Math.PI) / 180, [0.0, 1.0, 0.0]);
+        mat4.rotate(this.#modelMatrix, this.#modelMatrix, (this.#globalRotation[2] * Math.PI) / 180, [0.0, 0.0, 1.0]);
+    }
+
     translateGlobal(translationVector) {
         if (typeof(translationVector) !== 'object') {
             throw new Error("Translation Vector must be an array or vector");
         }
-        mat4.translate(this.#modelMatrix, this.#modelMatrix, translationVector);
+        let i = 0;
+        while (i < 3) {
+            this.#globalTranslation[i] = this.#globalTranslation[i] + translationVector[i];
+            i += 1;
+        }
+        this.calculateModelMatrix();
     }
 
     rotateGlobal(degrees, rotationAxisVector) {
         if (typeof(rotationAxisVector) !== 'object') {
             throw new Error("Rotation axis vector must be an array or vector");
         }
-        mat4.rotate(this.#modelMatrix, this.#modelMatrix, (degrees * Math.PI) / 180, rotationAxisVector);
+        let i = 0;
+        while (i < 3) {
+            if (rotationAxisVector[i] === 1.0) {
+                this.#globalRotation[i] = this.#globalRotation[i] + degrees;
+            }
+            i += 1;
+        }
+        this.calculateModelMatrix();
     }
 
     scaleGlobal(scalingVector) {
         if (typeof(scalingVector) !== 'object') {
             throw new Error("Scaling Vector must be an array or vector");
         }
-        mat4.scale(this.#modelMatrix, this.#modelMatrix, scalingVector);
+        let i = 0;
+        while (i < 3) {
+            this.#globalScale[i] = this.#globalScale[i] + scalingVector[i];
+            i += 1;
+        }
+        this.calculateModelMatrix();
     }
 
     getGlobalVerticies() {
@@ -519,9 +549,9 @@ function main() {
     const scene = []
     const player = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
     player.setTexture(`${DOMAIN_NAME}/assets/Player.png`, squareDefaultTexCoords, "aTexCoord");
+    player.rotateGlobal(180, [0.0, 0.0, 1.0]);
     player.translateGlobal([CANVAS_WIDTH / 2, 100, 0]);
     player.scaleGlobal([100, 100, 0]);
-    player.rotateGlobal(180, [1.0, 0.0, 0.0]);
 
     const basicEnemy = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
     basicEnemy.setTexture(`${DOMAIN_NAME}/assets/Enemy_Basic.png`, squareDefaultTexCoords, "aTexCoord");
@@ -580,7 +610,6 @@ function main() {
         } else if (playerMoveRight) {
             player.translateGlobal([playerSpeed * deltaTime, 0.0, 0.0]);
         }
-        
 
         // Resetting the canvas
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
