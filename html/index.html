@@ -14,25 +14,38 @@
     .center-text {
         text-align: center;
     }
+
+    html {
+        background-image: linear-gradient(black, #1f002e);
+        min-height: 100vh;
+        color: bisque;
+    }
+
+    canvas {
+        border-width: 5px;
+        border-color: #2b0141;
+        border-style: solid;
+        border-radius: 5px;
+    }
 </style>
-<body style="background-color: aqua;">
+<body>
     <h1 class="center-text">Galaga Clone!</h1>
     <div class="center">
         <canvas id="gl-canvas" class="center" width="${canvasWidth}" height="${canvasHeight}"></canvas>
     </div>
+    <script id="gl-matrix-src" src={./lib/glMatrix/gl-matrix-min.js}></script>
+    <script id="document-settings">
+        const CANVAS_WIDTH = ${canvasWidth};
+        const CANVAS_HEIGHT = ${canvasHeight};
+        const FLOAT_SIZE = ${floatSize};
+        const DEFAULT_DEPTH_CLEAR = ${depthClear};
+        const BACKGROUND_COLOR_R = ${backgroundColorR};
+        const BACKGROUND_COLOR_G = ${backgroundColorG};
+        const BACKGROUND_COLOR_B = ${backgroundColorB};
+        const BACKGROUND_COLOR_A = ${backgroundColorA};
+        const DOMAIN_NAME = "${domainName}";
+    </script>
+    <script id="primativeData" src={./src/primativeData.js}></script>
+    <script id="webpage-src" src={./src/index.js}></script>
 </body>
-<script id="gl-matrix-src" src={./lib/glMatrix/gl-matrix-min.js}></script>
-<script id="document-settings">
-    const CANVAS_WIDTH = ${canvasWidth};
-    const CANVAS_HEIGHT = ${canvasHeight};
-    const FLOAT_SIZE = ${floatSize};
-    const DEFAULT_DEPTH_CLEAR = ${depthClear};
-    const BACKGROUND_COLOR_R = ${backgroundColorR};
-    const BACKGROUND_COLOR_G = ${backgroundColorG};
-    const BACKGROUND_COLOR_B = ${backgroundColorB};
-    const BACKGROUND_COLOR_A = ${backgroundColorA};
-    const DOMAIN_NAME = "${domainName}";
-</script>
-<script id="primativeData" src={./src/primativeData.js}></script>
-<script id="webpage-src" src={./src/index.js}></script>
 </html>
