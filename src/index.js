@@ -443,6 +443,191 @@ class ShapeGL {
 }
 
 
+// Collider Class - used for determining when objects collide
+// Contains verticies that check for collision events each frame
+// Has a call back function to be called when the collision occurs
+// Supports transformation similar to ShapeGL objects, but the verticies are only localized
+class AreaCollider2D {
+    #verticies = [];
+    #vertexItems = 3;
+    #callBack = null;
+    #origin = [];
+    #collisions = [];
+    #collisionId = 0;
+    static nextId = 1;
+
+    static ColliderShape = Object.freeze({
+        SQUARE: 1,
+        TRIANGLE: 2,
+    });
+
+    constructor(colliderShape) {
+        const maxShape = Math.max(Object.values(AreaCollider2D.ColliderShape));
+        
+        if (colliderShape > maxShape || colliderShape <= 0) {
+            throw new Error("ColliderShape should be one of the enums provided by collider.");
+        }
+
+        if (colliderShape === 1) {
+            this.#verticies = squareVerticies;
+        } else if (colliderShape === 2) {
+            this.#verticies = triangleVerticies;
+        }
+        this.#collisionId = AreaCollider2D.nextId;
+        AreaCollider2D.nextId += 1;
+        this.calculateOrigin();
+    }
+
+    collision(colliderId) {
+        if (this.#callBack === null) {
+            throw new Error("Callback function needs to be set first with setCallBack");
+        }  
+
+        if (this.#collisions.includes(colliderId)) {
+            return;
+        } else {
+            this.#callBack();
+            this.#collisions.push(colliderId);
+        }
+    }
+
+    removeCollision(colliderId) {
+        if (this.#collisions.includes(colliderId)) {
+            this.#collisions.splice(this.#collisions.indexOf(colliderId), 1);
+        }
+    }
+
+    getId() {
+        return this.#collisionId;
+    }
+
+    setCallBack(func) {
+        if (typeof(func) !== 'function') {
+            throw new Error("Func needs to be a function");
+        }
+        this.#callBack = func;
+    }
+
+    getVerticies() {
+        return this.#verticies;
+    }
+
+    getVertexItems() {
+        return this.#vertexItems;
+    }
+
+    calculateOrigin() {
+        let averageX = 0;
+        let averageY = 0;
+        let averageZ = 0;
+        let i = 0;
+
+        while (i < this.#verticies.length) {
+            averageX += this.#verticies[i];
+            averageY += this.#verticies[i + 1];
+            averageZ += this.#verticies[i + 2];
+            i += this.#vertexItems;
+        }
+
+        averageX = averageX / (this.#verticies.length / this.#vertexItems);
+        averageY = averageY / (this.#verticies.length  / this.#vertexItems);
+        averageZ = averageZ / (this.#verticies.length  / this.#vertexItems);
+        this.#origin = [averageX, averageY, averageZ];
+    }
+
+    // Transforms the object on the local verticies based on the transform matrix
+    transformLocal(transformMatrix) {
+        let transformedVerticies = [];
+        let i = 0;
+        let tempVector = null;
+        while (i < this.#verticies.length) {
+            let w = 1;
+            if (this.#vertexItems === 4) {
+                w = this.#verticies[i + 3];
+            }
+
+            tempVector = vec4.fromValues(this.#verticies[i], this.#verticies[i + 1], this.#verticies[i + 2], w);
+            vec4.transformMat4(tempVector, tempVector, transformMatrix);
+
+            if (this.#vertexItems === 4) {
+                transformedVerticies.push(tempVector[0], tempVector[1], tempVector[2], tempVector[3]);
+            } else {
+                transformedVerticies.push(tempVector[0], tempVector[1], tempVector[2]);
+            }
+
+            i += this.#vertexItems;
+        }
+        this.#verticies = transformedVerticies;
+        this.calculateOrigin();
+    }
+
+    translateLocal(translationVector) {
+        if (typeof(translationVector) !== 'object') {
+            throw new Error("Translation Vector must be an array or vector");
+        }
+        const translation = mat4.create();
+        mat4.fromTranslation(translation, translationVector);
+        this.transformLocal(translation);
+    }
+
+    rotateLocal(degrees, rotationAxisVector) {
+        if (typeof(rotationAxisVector) !== 'object') {
+            throw new Error("Rotation axis vector must be an array or vector");
+        }
+        const rotation = mat4.create();
+        mat4.fromRotation(rotation, (degrees * Math.PI) / 180, rotationAxisVector);
+        this.transformLocal(rotation);
+    }
+
+    scaleLocal(scalingVector) {
+        if (typeof(scalingVector) !== 'object') {
+            throw new Error("Scaling Vector must be an array or vector");
+        }
+        const scale = mat4.create();
+        mat4.fromScaling(scale, scalingVector);
+        this.transformLocal(scale);
+    }
+
+    // Checks the relative direction from each vertex to pos
+    // If the relative position is similar to that of the origin, ie towards the center of the object, then it is colliding
+    // Otherwise it is not colliding
+    withinCollider(pos) {
+        let diffSigns = 0;
+        let i = 0;
+        
+        let originDiffX = 0;
+        let originDiffY = 0;
+
+        let posDiffX = 0;
+        let posDiffY = 0;
+
+        while (i < this.#verticies.length) {
+            originDiffX = this.#origin[0] - this.#verticies[i];
+            originDiffY = this.#origin[1] - this.#verticies[i + 1];
+            
+            posDiffX = pos[0] - this.#verticies[i];
+            posDiffY = pos[1] - this.#verticies[i + 1];
+            
+            // If either of the signs are flipped between the direction to the origin and the direction to the position, then it is likely outside the bounds of the area
+            if ((originDiffX < 0 && posDiffX >= 0) || (originDiffX >= 0 && posDiffX < 0)) {
+                diffSigns += 1;
+            } else if ((originDiffY < 0 && posDiffY >= 0) || (originDiffY >= 0 && posDiffY < 0)) {
+                diffSigns += 1;
+            }
+
+            if (diffSigns >= 2) {
+                return false;
+            }
+
+            i += this.#vertexItems;
+        }
+
+        return true;
+    }
+}
+
+
+
 
 //
 // Initialize a shader program, so WebGl knows how to draw our data
@@ -528,6 +713,60 @@ function queEvent(event) {
     eventQue.push(event);
 }
 
+function checkCollisions(colliders) {
+    // Collider loop, checking for any collisions that may be occuring in the game
+    let i = 0;
+    // Fetch each collider to be considered
+    while (i < colliders.length) {
+        const colliderId = colliders[i].getId();
+        // Check each vertex against all other colliders in the list to see if there is a collision
+        let k = 0;
+        while (k < colliders.length) {
+            if (k !== i) {
+                const otherId = colliders[k].getId();
+                const verticies = colliders[k].getVerticies();
+                const vertexItems = colliders[k].getVertexItems();
+                let j = 0;
+                while (j < verticies.length) {
+                    // If one of them is colliding then both are - only one vertex needs to collide for this collider to be colliding
+                    if (colliders[i].withinCollider([verticies[j], verticies[j + 1], verticies[j  + 2]])) {
+                        colliders[k].collision(colliderId);
+                        colliders[i].collision(otherId);
+                        break;
+                    }
+                    j += vertexItems
+
+                    // This object didn't detect the other inside of them
+                    // Now check if this object is inside the other one
+                    if (j >= verticies.length) {
+                        const collVerticies = colliders[i].getVerticies();
+                        const collVertexItems = colliders[i].getVertexItems();
+                        let l = 0;
+
+                        while (l < collVerticies.length) {
+                            if (colliders[k].withinCollider([collVerticies[l], collVerticies[l + 1], collVerticies[l + 2]])) {
+                                colliders[k].collision(colliderId);
+                                colliders[i].collision(otherId);
+                                break;
+                            } 
+
+                            l += collVertexItems;
+
+                            // No collisions were detected
+                            if (l >= verticies.length) {
+                                colliders[k].removeCollision(colliderId);
+                                colliders[i].removeCollision(otherId);
+                            }
+                        }
+                    }
+                }
+            }
+            k += 1;
+        }
+        i += 1;
+    }
+}
+
 main();
 
 function main() {
@@ -546,17 +785,32 @@ function main() {
 
     let totalTime = 0.0;
     // Build the player scene
-    const scene = []
+    const scene = [];
+    const colliders = [];
     const player = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
+    const playerCollider = new AreaCollider2D(AreaCollider2D.ColliderShape.SQUARE);
+    playerCollider.setCallBack(function () {console.log("Player detected a collision")});
+    colliders.push(playerCollider);
+    playerCollider.scaleLocal([100, 100, 0]);
+    playerCollider.translateLocal([CANVAS_WIDTH / 2, 100, 0]);
     player.setTexture(`${DOMAIN_NAME}/assets/Player.png`, squareDefaultTexCoords, "aTexCoord");
     player.rotateGlobal(180, [0.0, 0.0, 1.0]);
     player.translateGlobal([CANVAS_WIDTH / 2, 100, 0]);
     player.scaleGlobal([100, 100, 0]);
 
     const basicEnemy = new ShapeGL(squareVerticies, 3, squareDefaultColors, 3, squareIndices, gl);
+    const basicEnemyCollider = new AreaCollider2D(AreaCollider2D.ColliderShape.SQUARE);
+    basicEnemyCollider.setCallBack(function () {
+        scene.splice(scene.indexOf(basicEnemy), 1);
+        colliders.splice(colliders.indexOf(basicEnemyCollider), 1);
+    });
+    colliders.push(basicEnemyCollider);
+    basicEnemyCollider.scaleLocal([90, 90, 0]);
+    basicEnemyCollider.translateLocal([600, 100, 0]);
     basicEnemy.setTexture(`${DOMAIN_NAME}/assets/Enemy_Basic.png`, squareDefaultTexCoords, "aTexCoord");
-    basicEnemy.translateGlobal([CANVAS_WIDTH / 2, 500, 0]);
-    basicEnemy.scaleGlobal([100, 100, 0]);
+    basicEnemy.translateGlobal([600, 100, 0]);
+    basicEnemy.scaleGlobal([90, 90, 0]);
+
 
     // Adding the items to be rendered
     scene.push(player);
@@ -604,11 +858,14 @@ function main() {
         }
 
         eventQue = [];
+        checkCollisions(colliders);
 
         if (playerMoveLeft) {
             player.translateGlobal([-playerSpeed * deltaTime, 0.0, 0.0]);
+            playerCollider.translateLocal([-playerSpeed * deltaTime, 0.0, 0.0]);
         } else if (playerMoveRight) {
             player.translateGlobal([playerSpeed * deltaTime, 0.0, 0.0]);
+            playerCollider.translateLocal([playerSpeed * deltaTime, 0.0, 0.0]);
         }
 
         // Resetting the canvas

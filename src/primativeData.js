@@ -106,12 +106,12 @@ const squareVerticies = [
     0.5, -0.5,  0.0, 
    -0.5, -0.5,  0.0, 
    -0.5,  0.5,  0.0, 
-]
+];
 
 const squareIndices = [
     0, 1, 3,
     1, 2, 3
-]
+];
 
 const squareDefaultColors = [
     // White
@@ -119,11 +119,17 @@ const squareDefaultColors = [
     1.0, 1.0, 1.0,
     1.0, 1.0, 1.0,
     1.0, 1.0, 1.0
-]
+];
 
 const squareDefaultTexCoords = [
     1.0, 1.0,
     1.0, 0.0,
     0.0, 0.0,
     0.0, 1.0
-]
+];
+
+const triangleVerticies = [
+   -0.3536, -0.3536, 0.0,
+    0.0,     0.3536, 0.0,
+    0.3536, -0.3536, 0.0
+];
