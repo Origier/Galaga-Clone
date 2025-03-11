@@ -33,8 +33,8 @@
     <div class="center">
         <canvas id="gl-canvas" class="center" width="${canvasWidth}" height="${canvasHeight}"></canvas>
     </div>
-    <script id="gl-matrix-src" src={./lib/glMatrix/gl-matrix-min.js}></script>
-    <script id="document-settings">
+    <script id="glMatrixSrc" src={./lib/glMatrix/gl-matrix-min.js}></script>
+    <script id="documentSettings">
         const CANVAS_WIDTH = ${canvasWidth};
         const CANVAS_HEIGHT = ${canvasHeight};
         const FLOAT_SIZE = ${floatSize};
@@ -44,8 +44,12 @@
         const BACKGROUND_COLOR_B = ${backgroundColorB};
         const BACKGROUND_COLOR_A = ${backgroundColorA};
         const DOMAIN_NAME = "${domainName}";
+        const { vec2, vec3, vec4, mat3, mat4 } = glMatrix;
     </script>
     <script id="primativeData" src={./src/primativeData.js}></script>
-    <script id="webpage-src" src={./src/index.js}></script>
+    <script id="Object3D" src={./src/Object3D.js}></script>
+    <script id="ShapeGL" src={./src/ShapeGL.js}></script>
+    <script id="AreaCollider2D" src={./src/AreaCollider2D.js}></script>
+    <script id="gameSrc" src={./src/index.js}></script>
 </body>
 </html>
